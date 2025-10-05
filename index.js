@@ -3,7 +3,7 @@ import fetch from "node-fetch";
 
 const app = express();
 
-// Middleware для логирования
+// Логирование для отладки
 app.use((req, res, next) => {
   console.log(`➡️ ${req.method} ${req.url}`);
   next();
@@ -11,26 +11,34 @@ app.use((req, res, next) => {
 
 app.use(async (req, res) => {
   try {
-    // Если кто-то случайно делает запрос прямо к Render — возвращаем 403
+    // Блокируем прямой доступ к Render, чтобы не зацикливаться
     if (req.hostname.includes("onrender.com")) {
-      return res.status(403).send("Direct access blocked (use ChatGPT target)");
+      return res.status(403).send("Direct access blocked. Use the proxy target domain.");
     }
 
-    // Основная цель: проксировать к chat.openai.com
+    // Формируем адрес назначения (можно поменять на chatgpt.com)
     const target = "https://chat.openai.com" + req.url;
 
+    // Преобразуем заголовки безопасным способом
+    const safeHeaders = {};
+    for (const [key, value] of Object.entries(req.headers)) {
+      // Игнорируем проблемные служебные заголовки
+      if (["host", "connection", "content-length"].includes(key.toLowerCase())) continue;
+      safeHeaders[key] = value;
+    }
+
+    // Выполняем запрос к целевому серверу
     const response = await fetch(target, {
       method: req.method,
-      headers: {
-        ...Object.fromEntries(req.headers),
-        host: "chat.openai.com",
-      },
-      body: req.method === "GET" ? undefined : req.body,
+      headers: safeHeaders,
+      body: req.method === "GET" || req.method === "HEAD" ? undefined : req.body,
     });
 
-    // Копируем ответ
+    // Пересылаем ответ клиенту
     res.status(response.status);
-    response.headers.forEach((v, n) => res.setHeader(n, v));
+    for (const [name, value] of response.headers) {
+      res.setHeader(name, value);
+    }
     response.body.pipe(res);
   } catch (err) {
     console.error("❌ Proxy error:", err);
@@ -38,6 +46,6 @@ app.use(async (req, res) => {
   }
 });
 
-// Render подставит нужный порт
+// Render подставляет PORT сам
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Proxy running on port ${PORT}`));
