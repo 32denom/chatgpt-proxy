@@ -3,8 +3,7 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 
 const app = express();
 
-// основной целевой сайт
-const TARGET = "https://chatgpt.com"; // можно заменить на "https://chat.openai.com"
+const TARGET = "https://chatgpt.com"; // или chat.openai.com
 
 app.use(
   "/",
@@ -23,7 +22,6 @@ app.use(
   })
 );
 
-// если пользователь зашёл напрямую — перекидываем на целевой сайт
 app.get("*", (req, res) => {
   res.redirect(TARGET);
 });
