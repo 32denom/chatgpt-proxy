@@ -3,12 +3,22 @@ import fetch from "node-fetch";
 
 const app = express();
 
+// Middleware для логирования
+app.use((req, res, next) => {
+  console.log(`➡️ ${req.method} ${req.url}`);
+  next();
+});
+
 app.use(async (req, res) => {
   try {
-    // Убедимся, что проксируем только внешние запросы, а не сами себя
+    // Если кто-то случайно делает запрос прямо к Render — возвращаем 403
+    if (req.hostname.includes("onrender.com")) {
+      return res.status(403).send("Direct access blocked (use ChatGPT target)");
+    }
+
+    // Основная цель: проксировать к chat.openai.com
     const target = "https://chat.openai.com" + req.url;
 
-    // Выполняем запрос к ChatGPT
     const response = await fetch(target, {
       method: req.method,
       headers: {
@@ -18,16 +28,16 @@ app.use(async (req, res) => {
       body: req.method === "GET" ? undefined : req.body,
     });
 
-    // Передаём ответ клиенту
+    // Копируем ответ
     res.status(response.status);
     response.headers.forEach((v, n) => res.setHeader(n, v));
     response.body.pipe(res);
   } catch (err) {
-    console.error("Proxy error:", err);
+    console.error("❌ Proxy error:", err);
     res.status(500).send("Proxy error: " + err.message);
   }
 });
 
-// Render автоматически подставит нужный порт
+// Render подставит нужный порт
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Proxy running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Proxy running on port ${PORT}`));
